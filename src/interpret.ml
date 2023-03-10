@@ -334,15 +334,19 @@ module State = struct
     ; calls : (indice, count) Hashtbl.t
     }
 
-  type exec_state =
+  type inner_state =
     { return_state : exec_state option
-    ; stack : stack
     ; locals : locals
-    ; pc : pc
-    ; block_stack : block_stack
     ; func_rt : result_type
     ; env : Env.t
     ; count : count
+    }
+
+  and exec_state =
+    { stack : stack
+    ; pc : pc
+    ; block_stack : block_stack
+    ; inner_state : inner_state
     }
 
   let rec print_count ppf count =
@@ -390,8 +394,9 @@ module State = struct
   exception Result of value list
 
   let return (state : exec_state) =
-    let args = Stack.keep state.stack (List.length state.func_rt) in
-    match state.return_state with
+    let inner_state = state.inner_state in
+    let args = Stack.keep state.stack (List.length inner_state.func_rt) in
+    match inner_state.return_state with
     | None -> raise (Result args)
     | Some state ->
       let stack = args @ state.stack in
@@ -440,7 +445,7 @@ let exec_func ~return ~id (state : State.exec_state) env (func : wasm_func) =
   let param_type, result_type = func.type_f in
   let args, stack = Stack.pop_n state.stack (List.length param_type) in
   let return_state =
-    if return then state.return_state else Some { state with stack }
+    if return then state.inner_state.return_state else Some { state with stack }
   in
   let env = Lazy.force env in
   let locals =
@@ -448,13 +453,15 @@ let exec_func ~return ~id (state : State.exec_state) env (func : wasm_func) =
   in
   State.
     { stack = []
-    ; locals
     ; pc = func.body
     ; block_stack = []
-    ; func_rt = result_type
-    ; return_state
-    ; env
-    ; count = enter_function_count state.count func.id id
+    ; inner_state =
+        { locals
+        ; func_rt = result_type
+        ; return_state
+        ; env
+        ; count = enter_function_count state.inner_state.count func.id id
+        }
     }
 
 let exec_vfunc ~return (state : State.exec_state) (func : Env.t' Value.Func.t) =
@@ -468,7 +475,7 @@ let exec_vfunc ~return (state : State.exec_state) (func : Env.t' Value.Func.t) =
 let call_indirect ~return (state : State.exec_state) (tbl_i, typ_i) =
   let fun_i, stack = Stack.pop_i32_to_int state.stack in
   let state = { state with stack } in
-  let* t = Env.get_table state.env tbl_i in
+  let* t = Env.get_table state.inner_state.env tbl_i in
   let _null, ref_kind = t.type_ in
   if ref_kind <> Func_ht then trap "indirect call type mismatch";
   let func =
@@ -485,10 +492,10 @@ let call_indirect ~return (state : State.exec_state) (tbl_i, typ_i) =
   exec_vfunc ~return state func
 
 let exec_instr instr (state : State.exec_state) =
-  State.count_instruction state;
+  State.count_instruction state.inner_state;
   let stack = state.stack in
-  let env = state.env in
-  let locals = state.locals in
+  let env = state.inner_state.env in
+  let locals = state.inner_state.locals in
   let st stack = { state with stack } in
   Log.debug2 "stack        : [ %a ]@." Stack.pp stack;
   Log.debug2 "running instr: %a@." Simplified.Pp.instr instr;
@@ -1156,13 +1163,9 @@ let exec_expr env locals stack expr bt =
   let state : State.exec_state =
     let func_rt = match bt with None -> [] | Some rt -> rt in
     { stack
-    ; locals
-    ; env
-    ; func_rt
-    ; block_stack = []
     ; pc = expr
-    ; return_state = None
-    ; count
+    ; block_stack = []
+    ; inner_state = { locals; env; func_rt; return_state = None; count }
     }
   in
   try loop state with State.Result args -> (args, count)
