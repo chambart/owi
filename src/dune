@@ -16,6 +16,7 @@
   cmd_run
   cmd_script
   cmd_sym
+  cmd_conc
   cmd_validate
   cmd_wasm2wat
   compile
@@ -61,6 +62,8 @@
   symbolic_table
   symbolic_value
   concolic_value
+  concolic_choice
+  concolic
   spectest
   stack
   string_map

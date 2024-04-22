@@ -121,6 +121,19 @@ let c_cmd =
       $ opt_lvl $ includes $ files $ profiling $ unsafe $ optimize
       $ no_stop_at_failure $ no_values $ deterministic_result_order )
 
+let conc_cmd =
+  let open Cmdliner in
+  let info =
+    let doc = "Run the concolic interpreter" in
+    let man = [] @ shared_man in
+    Cmd.info "conc" ~version ~doc ~sdocs ~man
+  in
+  Cmd.v info
+    Term.(
+      const Cmd_conc.cmd $ profiling $ debug $ unsafe $ optimize $ workers
+      $ no_stop_at_failure $ no_values $ deterministic_result_order $ workspace
+      $ files )
+
 let fmt_cmd =
   let open Cmdliner in
   let info =
@@ -212,6 +225,7 @@ let cli =
   in
   Cmd.group info ~default
     [ c_cmd
+    ; conc_cmd
     ; fmt_cmd
     ; opt_cmd
     ; run_cmd
