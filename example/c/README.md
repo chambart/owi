@@ -220,6 +220,9 @@ SYNOPSIS
        owi c [OPTION]… [ARG]…
 
 OPTIONS
+       --concolic
+           concolic mode
+
        -d, --debug
            debug mode
 
